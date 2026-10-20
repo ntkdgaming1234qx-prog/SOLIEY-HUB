@@ -3,15 +3,39 @@ local urls = {
     "https://flowauth.net/v1/ui/b8430d6840e6214c130365e4e8033124.lua"
 }
 
-for i, url in ipairs(urls) do
-    local ok, result = pcall(function()
-        local source = game:HttpGet(url)
-        assert(source and #source > 0, "Không tải được mã")
-        local fn = assert(loadstring(source))
-        return fn()
+local function loadAndRun(url)
+    local ok, source = pcall(function()
+        return game:HttpGet(url)
     end)
 
-    if not ok then
-        warn("Lỗi script " .. i .. ": " .. tostring(result))
+    if not ok or type(source) ~= "string" or source == "" then
+        warn("Không tải được mã từ: " .. tostring(url) .. " | " .. tostring(source))
+        return false
     end
+
+    local chunk = loadstring(source)
+    if not chunk then
+        warn("Lỗi parse mã từ: " .. tostring(url))
+        return false
+    end
+
+    local success, err = pcall(chunk)
+    if not success then
+        warn("Lỗi khi chạy mã từ: " .. tostring(url) .. " | " .. tostring(err))
+        return false
+    end
+
+    return true
+end
+
+local loaded = false
+for _, url in ipairs(urls) do
+    if loadAndRun(url) then
+        loaded = true
+        break
+    end
+end
+
+if not loaded then
+    warn("Không gọi được mã nào từ danh sách URL.")
 end
