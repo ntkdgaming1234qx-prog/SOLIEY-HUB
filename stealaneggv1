@@ -1,4 +1,3 @@
-```lua
 -- Load Script 1 trước
 local success1, error1 = pcall(function()
     loadstring(game:HttpGet(
@@ -21,4 +20,3 @@ end)
 if not success2 then
     warn("Script 2 failed: " .. tostring(error2))
 end
-```
