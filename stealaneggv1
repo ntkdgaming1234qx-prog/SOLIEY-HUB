@@ -1,6 +1,5 @@
 ```lua
 -- Load Script 1 trước
-local success1, error1 = pcall(function()
 local loadstring(game:HttpGet("https://flowauth.net/v1/ui/145ed15b0322d52d97675f0d16f3278c.lua"))()
 end)
 if not success1 then
@@ -9,7 +8,6 @@ if not success1 then
 end
 
 -- Chạy Script 2 sau khi Script 1 hoàn tất
-local success2, error2 = pcall(function()
    local loadstring(game:HttpGet("https://flowauth.net/v1/ui/b8430d6840e6214c130365e4e8033124.lua"))()
 end)
 
