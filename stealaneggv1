@@ -1,17 +1,34 @@
-```lua
--- Load Script 1 trước
-local loadstring(game:HttpGet("https://flowauth.net/v1/ui/145ed15b0322d52d97675f0d16f3278c.lua"))()
-end)
-if not success1 then
-    warn("Script 1 failed: " .. tostring(error1))
+local SAE =
+loadstring(game:HttpGet("https://flowauth.net/v1/ui/145ed15b0322d52d97675f0d16f3278c.lua"))()
+local PANEL =
+loadstring(game:HttpGet("https://flowauth.net/v1/ui/b8430d6840e6214c130365e4e8033124.lua"))()
+local byGameId = {
+    [10563114921] = SAE,
+}
+
+local byPlaceId = {
+    [107778070777162] = SAE,
+}
+
+local gameId = game.GameId
+while gameId == 0 and game.PlaceId == 0 do
+    task.wait()
+    gameId = game.GameId
+end
+
+local url = byGameId[gameId] or byPlaceId[game.PlaceId]
+if not url then
     return
 end
 
--- Chạy Script 2 sau khi Script 1 hoàn tất
-   local loadstring(game:HttpGet("https://flowauth.net/v1/ui/b8430d6840e6214c130365e4e8033124.lua"))()
-end)
-
-if not success2 then
-    warn("Script 2 failed: " .. tostring(error2))
+for _ = 1, 3 do
+    local ok, source = pcall(game.HttpGet, game, url)
+    if ok and type(source) == "string" and source ~= "" then
+        local chunk = loadstring(source)
+        if chunk then
+            chunk()
+        end
+        return
+    end
+    task.wait(0.5)
 end
-```
