@@ -1,34 +1,17 @@
-local SAE =
-loadstring(game:HttpGet("https://flowauth.net/v1/ui/145ed15b0322d52d97675f0d16f3278c.lua"))()
-local PANEL =
-loadstring(game:HttpGet("https://flowauth.net/v1/ui/b8430d6840e6214c130365e4e8033124.lua"))()
-local byGameId = {
-    [10563114921] = SAE,
+local urls = {
+    "https://flowauth.net/v1/ui/145ed15b0322d52d97675f0d16f3278c.lua",
+    "https://flowauth.net/v1/ui/b8430d6840e6214c130365e4e8033124.lua"
 }
 
-local byPlaceId = {
-    [107778070777162] = SAE,
-}
+for i, url in ipairs(urls) do
+    local ok, result = pcall(function()
+        local source = game:HttpGet(url)
+        assert(source and #source > 0, "Không tải được mã")
+        local fn = assert(loadstring(source))
+        return fn()
+    end)
 
-local gameId = game.GameId
-while gameId == 0 and game.PlaceId == 0 do
-    task.wait()
-    gameId = game.GameId
-end
-
-local url = byGameId[gameId] or byPlaceId[game.PlaceId]
-if not url then
-    return
-end
-
-for _ = 1, 3 do
-    local ok, source = pcall(game.HttpGet, game, url)
-    if ok and type(source) == "string" and source ~= "" then
-        local chunk = loadstring(source)
-        if chunk then
-            chunk()
-        end
-        return
+    if not ok then
+        warn("Lỗi script " .. i .. ": " .. tostring(result))
     end
-    task.wait(0.5)
 end
