@@ -1,5 +1,5 @@
 --[[
-    HYDROGEN V1 - ALL-IN-ONE FIXED V3 (V2 + đổi icon tab + dọn nền; FixLag tách riêng)
+    HYDROGEN V1 - ALL-IN-ONE FIXED V3 (V2 + đổi icon tab + dọn nền + sửa menu cổ điển; FixLag tách riêng)
     Thứ tự: 1) hub V2 (tải file gốc HYDROGEN_V1_ALL_IN_ONE_FIXED.lua, vá và chạy)  ->  2) đổi icon tab + dọn nền  ->  3) FixLag (file riêng HYDROGEN_FixLag.lua, tuỳ chọn qua FIXLAG_URL).
     Lưu ý: vẫn cần giữ nguyên file gốc HYDROGEN_V1_ALL_IN_ONE_FIXED.lua trên GitHub (lấy ảnh nhúng từ đó).
     Mỗi phần nằm trong hàm riêng nên lỗi ở phần này không làm phần kia dừng.
@@ -259,10 +259,12 @@ if not okRun then warn("[HYDROGEN V2] lỗi khi chạy:", errRun) end
 
 end
 
--- ======================= PHẦN 3: ĐỔI ICON TAB + DỌN NỀN MENU CHÍNH =======================
+-- ======================= PHẦN 3: ĐỔI ICON TAB + DỌN NỀN + SỬA MENU CỔ ĐIỂN =======================
 -- Chạy độc lập với phần 1 (không cần biết code file gốc), quét giao diện lúc đang chạy:
 --   (a) Thanh tab bên trái của menu chính: icon quả trứng trắng (tab 3) -> chuyển sang tab 2, tab 3 bị xoá icon.
 --   (b) Sau khi bấm SWITCH: mọi lớp nền/ảnh nền của menu chính còn sót lại trong menu cổ điển bị xoá.
+--   (c) Menu cổ điển: logo V -> logo HYDROGEN, ẩn khung Try ngay, thay khung mã loadstring bằng khung
+--       "Quay lại giao diện cũ" (SWITCH: tắt menu cổ điển và chạy lại menu cũ).
 local function runTabAndBgFix()
     local Players = game:GetService("Players")
     local CoreGui = game:GetService("CoreGui")
@@ -272,6 +274,10 @@ local function runTabAndBgFix()
         TAB3_IMAGE = "",            -- để trống = tab 3 không có icon. Muốn icon khác: "rbxassetid://123456"
         AGGRESSIVE_BG_CLEAN = true, -- xoá cả ảnh rất lớn (>=30% chiều rộng, >=35% chiều cao màn hình) lọt vào menu cổ điển
         TICK = 0.5,
+        HIDE_PROMO_CARD = true,     -- true = ẩn cả khung logo V + nút "Try ngay"; false = chỉ ẩn nút Try (khung giữ lại với logo HYDROGEN)
+        LOGO_IMAGE = "",            -- để trống = tự lấy logo HYDROGEN từ menu chính. Muốn chỉ định: "rbxassetid://123456"
+        BACK_URL = "https://raw.githubusercontent.com/ntkdgaming1234qx-prog/SOLIEY-HUB/refs/heads/main/HYDROGEN_V1_ALL_IN_ONE_FIXED_V3.lua",  -- SWITCH sẽ tải lại link này (menu cũ)
+        BACK_CLEAR_GLOBALS = {},    -- tên biến getgenv() cần xoá thêm trước khi chạy lại menu cũ (nếu hub gốc chặn chạy lần 2)
         DRY_RUN = false,            -- true = chỉ in log những gì SẼ dọn, không xoá/ẩn gì cả (để kiểm tra trước)
     }
 
@@ -769,6 +775,323 @@ local function runTabAndBgFix()
         end
     end)
 
+    -- ---------- MENU CỔ ĐIỂN: logo HYDROGEN, ẩn khung Try, khung "Quay lại giao diện cũ" ----------
+    -- Quét lúc đang chạy (không cần biết code menu cổ điển):
+    --   * khung có chữ "Smoother, faster..." + nút "Try ngay" -> ẩn (logo V trong đó cũng được đổi sang logo HYDROGEN)
+    --   * khung mã loadstring + nút "Sao chép" -> ẩn, thay bằng khung "Quay lại giao diện cũ" có nút SWITCH
+    --   * SWITCH: đóng menu cổ điển rồi chạy lại menu cũ (tải lại BACK_URL)
+    local logoImage = (CFG.LOGO_IMAGE ~= "" and CFG.LOGO_IMAGE) or nil
+
+    local function isTextual(d) return d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") end
+
+    local function isSquareImg(d, lo, hi)
+        if not isImg(d) or d.Image == "" then return false end
+        local s = d.AbsoluteSize
+        return s.X >= lo and s.X <= hi and math.abs(s.X - s.Y) <= math.max(3, s.X * 0.12)
+    end
+
+    local function lcaOf(a, b)
+        local set, cur = {}, a
+        while cur do set[cur] = true; cur = cur.Parent end
+        cur = b
+        while cur do
+            if set[cur] then return cur end
+            cur = cur.Parent
+        end
+        return nil
+    end
+
+    local function isAncestorOrSelf(a, d) return d == a or d:IsDescendantOf(a) end
+
+    local function countButtons(root)
+        local n = 0
+        for _, c in ipairs(root:GetDescendants()) do
+            if c:IsA("TextButton") or c:IsA("ImageButton") then n = n + 1 end
+        end
+        return n
+    end
+
+    -- học logo HYDROGEN từ menu chính: ảnh vuông nhỏ nằm cao nhất rồi trái nhất (logo ở góc trái thanh tiêu đề)
+    local function learnLogo(g)
+        if logoImage then return end
+        local best
+        for _, d in ipairs(g:GetDescendants()) do
+            if isSquareImg(d, 20, 90) and d.Visible and not bgImages[d.Image] then
+                local p = d.AbsolutePosition
+                if not best or p.Y < best.y - 6 or (math.abs(p.Y - best.y) <= 6 and p.X < best.x) then
+                    best = { img = d.Image, x = p.X, y = p.Y }
+                end
+            end
+        end
+        if best then
+            logoImage = best.img
+            print("[HYDROGEN] đã học logo HYDROGEN từ menu chính")
+        end
+    end
+
+    -- dự phòng khi chưa từng thấy menu chính: ảnh vuông xuất hiện >= 2 lần ở các GUI ngoài menu cổ điển (logo nổi bên trái/phải)
+    local lastFallback = 0
+    local function fallbackLogo()
+        if logoImage or os.clock() - lastFallback < 3 then return end
+        lastFallback = os.clock()
+        local counts = {}
+        eachGui(function(o)
+            if o:GetAttribute("HYD_skip") or isClassic(o) then return end
+            for _, d in ipairs(o:GetDescendants()) do
+                if isSquareImg(d, 28, 140) and not bgImages[d.Image] then
+                    counts[d.Image] = (counts[d.Image] or 0) + 1
+                end
+            end
+        end)
+        local bestImg, bestN
+        for img, n in pairs(counts) do
+            if n >= 2 and (not bestN or n > bestN) then bestImg, bestN = img, n end
+        end
+        if bestImg then
+            logoImage = bestImg
+            print("[HYDROGEN] dùng logo dự phòng (ảnh vuông lặp lại). Có thể đặt CFG.LOGO_IMAGE để chỉ định chính xác.")
+        end
+    end
+
+    local function newInst(class, props, parent)
+        local o = Instance.new(class)
+        for k, v in pairs(props) do o[k] = v end
+        o:SetAttribute("HYD_skip", true)   -- hub gốc và bộ dọn nền đều bỏ qua đối tượng này
+        o:SetAttribute("HYD_keep", true)
+        o.Parent = parent
+        return o
+    end
+
+    local function hideObj(d, g, why)
+        if not d or not d.Parent or isProtected(d, g) then return end
+        if d:IsA("GuiObject") and d.Visible then
+            note(d, why)
+            remember(d, { "Visible" })
+            d.Visible = false
+        end
+    end
+
+    local function setLogo(img)
+        if not logoImage or img.Image == logoImage then return end
+        remember(img, { "Image", "ImageRectOffset", "ImageRectSize", "ImageColor3", "ScaleType" })
+        img.Image = logoImage
+        img.ImageRectOffset = Vector2.new(0, 0)
+        img.ImageRectSize = Vector2.new(0, 0)
+        img.ImageColor3 = Color3.new(1, 1, 1)
+        img.ScaleType = Enum.ScaleType.Fit
+        note(img, "đổi logo V -> logo HYDROGEN")
+    end
+
+    -- ---------- SWITCH: tắt menu cổ điển + chạy lại menu cũ ----------
+    local KEEP_GLOBALS = { HYDROGEN_FIXLAG = true, HYDROGEN_FIXLAG_CONFIG = true, HYDROGEN_BG_STATUS = true,
+        HYDROGEN_FORCE_CLEAN = true, HYDROGEN_RESTORE_HIDDEN = true, HYDROGEN_GUARD_STOP = true,
+        HYDROGEN_BACK_TO_OLD = true }
+
+    -- xoá các cờ kiểu "đã tải/đang chạy" của hub (nếu có) để hub cũ chịu chạy lại
+    local function resetHubFlags()
+        local env = getgenv and getgenv()
+        if not env then return end
+        local names = {}
+        for k in pairs(env) do
+            if type(k) == "string" and not KEEP_GLOBALS[k] then
+                local u = k:upper()
+                local isHub = u:find("HYDROGEN", 1, true) or u:find("SOLIEY", 1, true) or u:find("VENYX", 1, true)
+                local isFlag = u:find("LOAD", 1, true) or u:find("RUN", 1, true) or u:find("ACTIVE", 1, true)
+                    or u:find("EXEC", 1, true) or u:find("STARTED", 1, true)
+                if isHub and isFlag then names[#names + 1] = k end
+            end
+        end
+        for _, k in ipairs(CFG.BACK_CLEAR_GLOBALS) do names[#names + 1] = k end
+        for _, k in ipairs(names) do
+            pcall(function() env[k] = nil end)
+            print("[HYDROGEN] reset cờ toàn cục: " .. tostring(k))
+        end
+    end
+
+    local switching = false
+    local function backToOldMenu()
+        if switching then return end
+        switching = true
+        print("[HYDROGEN] quay lại giao diện cũ: đóng menu này và chạy lại menu cũ")
+        pcall(function() if getgenv then getgenv().HYDROGEN_GUARD_STOP = true end end)   -- vòng bảo vệ hiện tại tự dừng
+
+        eachGui(function(g)
+            if g ~= mainRef and (g:GetAttribute("HYD_classic") or isClassic(g)) then
+                pcall(function() g:Destroy() end)
+            end
+        end)
+        resetHubFlags()
+
+        task.spawn(function()
+            task.wait(CFG.TICK * 2 + 0.3)                    -- cho vòng bảo vệ cũ thoát hẳn
+            pcall(function() if getgenv then getgenv().HYDROGEN_GUARD_STOP = false end end)
+            local ok, src = pcall(function() return game:HttpGet(CFG.BACK_URL) end)
+            if not ok or type(src) ~= "string" or #src < 1000 then
+                warn("[HYDROGEN] không tải được menu cũ từ BACK_URL:", src)
+                switching = false
+                return
+            end
+            local fn, err = loadstring(src)
+            if not fn then
+                warn("[HYDROGEN] menu cũ bị lỗi cú pháp:", err)
+                switching = false
+                return
+            end
+            local okRun, errRun = pcall(fn)
+            if not okRun then warn("[HYDROGEN] lỗi khi chạy lại menu cũ:", errRun) end
+            switching = false
+        end)
+    end
+    pcall(function() if getgenv then getgenv().HYDROGEN_BACK_TO_OLD = backToOldMenu end end)
+
+    -- ---------- khung "Quay lại giao diện cũ" ----------
+    local function buildBackPanel(container)
+        local maxZ = container.ZIndex
+        for _, d in ipairs(container:GetDescendants()) do
+            if d:IsA("GuiObject") and d.ZIndex > maxZ then maxZ = d.ZIndex end
+        end
+        local holder = newInst("Frame", {
+            Name = "HYD_BackPanel", BackgroundTransparency = 1, BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 1, 0), ZIndex = maxZ + 1,
+        }, container)
+        local title = newInst("TextLabel", {
+            Name = "Title", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(0, 14, 0.5, 0), Size = UDim2.new(1, -176, 0, 28),
+            Font = Enum.Font.GothamBold, Text = "Quay lại giao diện cũ", TextColor3 = Color3.fromRGB(245, 225, 255),
+            TextScaled = true, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = maxZ + 2,
+        }, holder)
+        newInst("UITextSizeConstraint", { MaxTextSize = 18, MinTextSize = 10 }, title)
+        local btn = newInst("TextButton", {
+            Name = "SwitchBtn", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0),
+            Size = UDim2.new(0, 140, 0, 40), BackgroundColor3 = Color3.fromRGB(122, 54, 218), BorderSizePixel = 0,
+            AutoButtonColor = true, Font = Enum.Font.GothamBold, TextSize = 15, Text = "SWITCH",
+            TextColor3 = Color3.new(1, 1, 1), ZIndex = maxZ + 2,
+        }, holder)
+        newInst("UICorner", { CornerRadius = UDim.new(0, 9) }, btn)
+        btn.Activated:Connect(backToOldMenu)
+        return holder
+    end
+
+    -- ---------- tìm các thành phần cần sửa ----------
+    local function findWidgets(g)
+        local w, copies = {}, {}
+        for _, d in ipairs(g:GetDescendants()) do
+            if isTextual(d) then
+                local t = plainText(d.Text)
+                if t ~= "" then
+                    if not w.codeText and t:find("loadstring", 1, true) then
+                        w.codeText = d
+                    elseif d:IsA("TextButton") and (t == "sao chép" or t == "sao chep" or t == "copy" or t == "copied") then
+                        copies[#copies + 1] = d
+                    elseif not w.tryBtn and d:IsA("TextButton") and (t == "try ngay" or t == "try now" or t:find("^try ") or t:find("^thử ")) then
+                        w.tryBtn = d
+                    elseif not w.promoText and t:find("smoother, faster", 1, true) then
+                        w.promoText = d
+                    end
+                end
+            end
+        end
+
+        -- nút "Sao chép" gần khung mã nhất (điểm chung sâu nhất)
+        if w.codeText and #copies > 0 then
+            local bestB, bestDepth
+            for _, b in ipairs(copies) do
+                local l, depth = lcaOf(w.codeText, b), 0
+                local cur = l
+                while cur do depth = depth + 1; cur = cur.Parent end
+                if not bestDepth or depth > bestDepth then bestB, bestDepth = b, depth end
+            end
+            w.copyBtn = bestB
+        end
+
+        -- khung logo V + chữ + nút Try
+        if w.tryBtn and w.promoText then
+            local card = lcaOf(w.promoText, w.tryBtn)
+            local function okCard(c)
+                return c and c ~= g and c:IsA("GuiObject") and not c:IsA("ScrollingFrame")
+                    and not (w.codeText and isAncestorOrSelf(c, w.codeText))
+                    and countButtons(c) <= 2
+            end
+            if okCard(card) then
+                -- leo lên khi logo nằm ngoài khung nhỏ nhất, nhưng không gộp sang khung khác (giới hạn theo chiều cao)
+                local base = card.AbsoluteSize.Y
+                while card.Parent and okCard(card.Parent) and card.Parent.AbsoluteSize.Y <= base * 1.5 do
+                    card = card.Parent
+                end
+                w.card = card
+                for _, d in ipairs(card:GetDescendants()) do
+                    if isSquareImg(d, 24, 200) then w.logo = d break end
+                end
+            end
+        end
+        return w
+    end
+
+    local classicState = setmetatable({}, { __mode = "k" })
+
+    local function ensureBackPanel(g, st, w)
+        if st.holder and st.holder.Parent then
+            for _, b in ipairs(st.branches or {}) do
+                if b.Parent and b.Visible then b.Visible = false end   -- hub vẽ lại thì ẩn lại
+            end
+            return
+        end
+        local container = lcaOf(w.codeText, w.copyBtn or w.codeText)
+        local branches = {}
+        local safe = container and container ~= g and container:IsA("GuiObject") and container ~= w.codeText
+            and container.AbsoluteSize.Y <= 160 and countButtons(container) <= 2
+        if safe then
+            for _, c in ipairs(container:GetChildren()) do
+                if c:IsA("GuiObject") and (isAncestorOrSelf(c, w.codeText) or (w.copyBtn and isAncestorOrSelf(c, w.copyBtn))) then
+                    branches[#branches + 1] = c
+                end
+            end
+            if #branches == 0 then safe = false end
+        end
+        if not safe then
+            container = w.codeText.Parent
+            branches = { w.codeText }
+            if w.copyBtn then branches[#branches + 1] = w.copyBtn end
+        end
+        if not container or container == g or not container:IsA("GuiObject") then return end
+
+        for _, b in ipairs(branches) do hideObj(b, g, "ẩn khung mã loadstring / Sao chép") end
+        st.holder = buildBackPanel(container)
+        st.branches = branches
+        print("[HYDROGEN] đã thay khung mã loadstring bằng khung 'Quay lại giao diện cũ'")
+    end
+
+    local function reviseClassic(g)
+        local st = classicState[g]
+        if not st then st = { last = 0 }; classicState[g] = st end
+        local now = os.clock()
+        if now - st.last < (st.holder and 2 or 1) then return end
+        st.last = now
+
+        if not logoImage then fallbackLogo() end
+        local w = findWidgets(g)
+
+        -- logo V -> logo HYDROGEN (mọi ảnh trùng với logo V trong khung Try)
+        if w.logo and not st.vImage and w.logo.Image ~= logoImage then st.vImage = w.logo.Image end
+        if logoImage and st.vImage then
+            for _, d in ipairs(g:GetDescendants()) do
+                if isImg(d) and d.Image == st.vImage then setLogo(d) end
+            end
+        end
+
+        -- ẩn khung có nút Try (hoặc chỉ nút Try nếu không xác định được khung)
+        if w.tryBtn then
+            if CFG.HIDE_PROMO_CARD and w.card then
+                hideObj(w.card, g, "ẩn khung logo V + nút Try")
+            else
+                hideObj(w.tryBtn, g, "ẩn nút Try")
+            end
+        end
+
+        -- thay khung mã loadstring
+        if w.codeText then ensureBackPanel(g, st, w) end
+    end
+
     -- ---------- vòng lặp chính ----------
     task.spawn(function()
         local t0 = os.clock()
@@ -830,6 +1153,7 @@ local function runTabAndBgFix()
                 if os.clock() - lastLearn > 2 then
                     lastLearn = os.clock()
                     pcall(learnBackgrounds, mainGui)
+                    pcall(learnLogo, mainGui)
                 end
             end
 
@@ -840,6 +1164,8 @@ local function runTabAndBgFix()
                     anyClassic = true
                     purgeClassic(g)
                     verifyClassic(g)
+                    local okR, errR = pcall(reviseClassic, g)
+                    if not okR then warn("[HYDROGEN] sửa menu cổ điển:", errR) end
                 elseif hadMain and not mainGui and g.Name ~= "SW_ConfirmHub" then
                     purgeStrayBgGui(g)
                 end
