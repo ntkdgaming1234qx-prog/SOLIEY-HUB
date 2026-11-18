@@ -14,7 +14,7 @@
 ]]
 
 local CONFIG = {
-    SOURCE = "https://id.tomroblox.com/raw/kairoblox/venyx-chilli-v9-ba-khi-909",
+    SOURCE = "https://gist.githubusercontent.com/thuyngudot42-svg/b343c9d9fa060b6deb1141b7851301f8/raw/3c92f5a61d76a6d18278160dbb8921e251ffd753/chilli-Venyxhub-ba-khi-909",
 
     -- Bấm nút "HYDROGEN V1" trên bảng điều khiển -> tải và chạy mã ở link này
     SWITCH_SOURCE = "https://raw.githubusercontent.com/ntkdgaming1234qx-prog/SOLIEY-HUB/refs/heads/main/HydrogenSwitch.lua",
